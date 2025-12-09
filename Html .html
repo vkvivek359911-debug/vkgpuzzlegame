@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="hi">
+
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Puzzle Game 50 Levels</title>
+
+<style>
+:root{--bg1:#ff9a9e;--bg2:#fad0c4}
+html,body{height:100%;margin:0;font-family:system-ui;background:linear-gradient(180deg,var(--bg1),var(--bg2));display:flex;align-items:center;justify-content:center}
+.frame{width:360px;height:640px;max-width:92vmin;max-height:163vmin;aspect-ratio:9/16;border-radius:16px;overflow:hidden;box-shadow:0 12px 28px rgba(0,0,0,0.3);background:rgba(255,255,255,0.06);display:flex;flex-direction:column;position:relative}
+
+header{padding:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center;color:#fff;font-size:20px}
+
+/* Refresh Button */
+#refreshBtn{
+ padding:6px 14px;font-weight:700;border:0;border-radius:8px;
+ background:white;color:#000;box-shadow:0 4px 10px rgba(0,0,0,0.4);font-size:16px;
+}
+
+#board{width:92%;height:70%;margin:auto;display:grid;gap:6px;padding:6px;border-radius:12px;background:rgba(255,255,255,0.08)}
+
+.tile{display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;border-radius:10px;border:3px solid #fff;
+box-shadow:0 6px 12px rgba(0,0,0,0.25);transition:200ms}
+.empty{background:transparent;border:0;box-shadow:none}
+
+/* Tile 1 Highlight */
+.startTile{
+  background:linear-gradient(180deg,#fff176,#ffca28) !important;color:#000 !important;
+  border:4px solid #ff9800 !important;box-shadow:0 0 14px #ff9800;
+  animation: glow 1s infinite alternate;
+}
+@keyframes glow{from{box-shadow:0 0 8px #ff9800;} to{box-shadow:0 0 16px #ff9800;}}
+
+/* Start Screen */
+#startScreen{
+ position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ flex-direction:column;background:rgba(0,0,0,0.65);backdrop-filter:blur(5px);z-index:20;
+}
+#startBtn{padding:14px 28px;font-size:22px;font-weight:800;border:0;border-radius:12px;background:#fff;box-shadow:0 8px 18px rgba(0,0,0,0.5)}
+
+/* WIN POPUP */
+#winPopup{
+ position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+ background:rgba(0,0,0,0.55);backdrop-filter:blur(6px);z-index:30;
+}
+.winBox{
+ background:white;padding:22px 28px;border-radius:18px;text-align:center;font-size:26px;
+ font-weight:900;animation:pop .6s ease;box-shadow:0 12px 28px rgba(0,0,0,0.4);
+}
+@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.12)}100{transform:scale(1)}}
+
+#nextBtn{
+ margin-top:18px;padding:12px 26px;font-size:20px;font-weight:800;border:0;border-radius:12px;
+ background:#ffeb3b;box-shadow:0 6px 16px rgba(0,0,0,0.4);
+}
+
+/* Bottom Side Ad Bar */
+#adBar{
+ height:45px;background:rgba(255,255,255,0.18);backdrop-filter:blur(6px);
+ display:flex;align-items:center;justify-content:space-between;
+ color:#fff;font-weight:700;font-size:16px;padding:0 12px;
+}
+</style>
+</head>
+
+<body>
+<div class="frame">
+
+<!-- Start Screen -->
+<div id="startScreen">
+ <h1 style="color:#fff;font-size:32px;font-weight:900;margin-bottom:20px;">Puzzle Game</h1>
+ <button id="startBtn">Start</button>
+</div>
+
+<!-- Win Popup -->
+<div id="winPopup">
+ <div class="winBox">
+   🎉 Level Complete! 🎉
+   <div style="font-size:18px;margin-top:5px;">Great Job!</div>
+   <button id="nextBtn">Next Level ➜</button>
+ </div>
+</div>
+
+<header>
+ Level <span id="levelLabel">1</span>
+ <button id="refreshBtn">Reset</button>
+</header>
+
+<div id="board"></div>
+
+<!-- Bottom AD Bar -->
+<div id="adBar">
+ <span>Ad Here</span>
+ <span>Ad Here</span>
+</div>
+
+</div>
+
+<!-- Sound effects -->
+<audio id="moveSound" src="https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3"></audio>
+<audio id="winSound" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+
+<!-- NEW LOFI SLOWED BACKGROUND MUSIC -->
+<audio id="bgMusic" src="https://cdn.pixabay.com/download/audio/2023/08/20/audio_fd58ec7e52.mp3?filename=lofi-beat-slow-131397.mp3" loop></audio>
+
+<script>
+const TOTAL_LEVELS = 50;
+let level=1, gridSize=3, board=[], emptyPos={}, moves=0, solved=false;
+
+const boardEl=document.getElementById("board"),
+ levelLabel=document.getElementById("levelLabel"),
+ startScreen=document.getElementById("startScreen"),
+ startBtn=document.getElementById("startBtn"),
+ winPopup=document.getElementById("winPopup"),
+ nextBtn=document.getElementById("nextBtn"),
+ refreshBtn=document.getElementById("refreshBtn"),
+ moveSound=document.getElementById("moveSound"),
+ winSound=document.getElementById("winSound"),
+ bgMusic=document.getElementById("bgMusic");
+
+startBtn.onclick=()=>{ 
+ startScreen.style.display="none"; 
+ bgMusic.volume=0.28; 
+ bgMusic.play(); 
+ startLevel(1); 
+}
+
+nextBtn.onclick=()=>{ winPopup.style.display="none"; level<50 && startLevel(level+1); }
+
+refreshBtn.onclick=()=> startLevel(level);  // RESET BUTTON
+
+function computeGrid(lv){ return Math.min(2 + Math.floor(lv/5), 8); }
+
+function startLevel(lv){
+ solved=false; moves=0; level=lv; gridSize=computeGrid(level);
+ levelLabel.textContent=level; buildSolved(); shuffle(50+gridSize*7); render();
+}
+
+function buildSolved(){
+ board=[]; let num=1;
+ for(let r=0;r<gridSize;r++){ board[r]=[];
+ for(let c=0;c<gridSize;c++){ board[r][c]=num++; }}
+ board[gridSize-1][gridSize-1]=null;
+ emptyPos={r:gridSize-1,c:gridSize-1};
+}
+
+function shuffle(steps){
+ const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+ for(let i=0;i<steps;i++){
+   let d=dirs[Math.random()*4|0], nr=emptyPos.r+d[0], nc=emptyPos.c+d[1];
+   if(nr>=0&&nr<gridSize&&nc>=0&&nc<gridSize){
+     board[emptyPos.r][emptyPos.c]=board[nr][nc];
+     board[nr][nc]=null; emptyPos={r:nr,c:nc};
+   }
+ }
+}
+
+function render(){
+ boardEl.innerHTML="";
+ boardEl.style.gridTemplateColumns=`repeat(${gridSize},1fr)`;
+ for(let r=0;r<gridSize;r++){
+   for(let c=0;c<gridSize;c++){
+     let v=board[r][c], t=document.createElement("div");
+     t.className="tile";
+
+     if(v===null) t.classList.add("empty");
+     else{
+       t.textContent=v;
+       let hue=(v*35+level*20)%360;
+       t.style.background=`hsl(${hue} 85% 60%)`;
+     }
+     if(v===1) t.classList.add("startTile");
+     t.onclick=()=>move(r,c);
+     boardEl.appendChild(t);
+   }
+ }
+}
+
+function move(r,c){
+ if(solved) return;
+ if(Math.abs(r-emptyPos.r)+Math.abs(c-emptyPos.c)===1){
+   board[emptyPos.r][emptyPos.c]=board[r][c]; board[r][c]=null;
+   emptyPos={r,c};
+   moveSound.play();
+   render();
+   if(checkSolved()) win();
+ }
+}
+
+function checkSolved(){
+ let count=1;
+ for(let r=0;r<gridSize;r++){
+   for(let c=0;c<gridSize;c++){
+     if(r===gridSize-1&&c===gridSize-1) return board[r][c]===null;
+     if(board[r][c]!==count++) return false;
+   }
+ }
+}
+
+function win(){
+ solved=true;
+ bgMusic.volume=0.12;
+ winSound.play();
+ winPopup.style.display="flex";
+}
+</script>
+
+</body>
+</html>
